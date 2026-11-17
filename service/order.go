@@ -184,6 +184,19 @@ func (s *OrderService) Evaluate(orderNo string, score int, comment string) error
 	return nil
 }
 
+// CancelOrder 报修人取消报修单，仅待审核状态可由本人取消。对应需求 NFRPT04。
+func (s *OrderService) CancelOrder(orderNo string, reporterID uint) error {
+	o, err := s.get(orderNo)
+	if err != nil {
+		return err
+	}
+	if o.Status != model.StatusPending || o.ReporterID != reporterID {
+		return ErrInvalidStatus
+	}
+	s.updateStatus(o, model.StatusCanceled)
+	return nil
+}
+
 // GetOrder 查询报修单当前状态，对应需求 NFRPT03。
 func (s *OrderService) GetOrder(orderNo string) (*model.RepairOrder, error) {
 	s.mu.Lock()
@@ -213,6 +226,18 @@ func (s *OrderService) updateStatus(o *model.RepairOrder, st model.OrderStatus) 
 	defer s.mu.Unlock()
 	o.Status = st
 	o.UpdatedAt = time.Now()
+}
+
+// ListOrders 返回全部报修单的快照副本，供统计等只读场景使用。
+func (s *OrderService) ListOrders() []*model.RepairOrder {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	list := make([]*model.RepairOrder, 0, len(s.orders))
+	for _, o := range s.orders {
+		cp := *o
+		list = append(list, &cp)
+	}
+	return list
 }
 
 // isClosed 判断工单是否处于终态（已关闭/已驳回/已取消）。
