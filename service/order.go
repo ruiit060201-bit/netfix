@@ -184,6 +184,19 @@ func (s *OrderService) Evaluate(orderNo string, score int, comment string) error
 	return nil
 }
 
+// CancelOrder 报修人取消报修单，仅待审核状态可由本人取消。对应需求 NFRPT04。
+func (s *OrderService) CancelOrder(orderNo string, reporterID uint) error {
+	o, err := s.get(orderNo)
+	if err != nil {
+		return err
+	}
+	if o.Status != model.StatusPending || o.ReporterID != reporterID {
+		return ErrInvalidStatus
+	}
+	s.updateStatus(o, model.StatusCanceled)
+	return nil
+}
+
 // GetOrder 查询报修单当前状态，对应需求 NFRPT03。
 func (s *OrderService) GetOrder(orderNo string) (*model.RepairOrder, error) {
 	s.mu.Lock()

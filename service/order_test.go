@@ -130,6 +130,37 @@ func TestInvalidScore(t *testing.T) {
 	}
 }
 
+// TestCancelOrder 测试报修单取消：仅待审核状态可由本人取消，取消后可重新报修。
+func TestCancelOrder(t *testing.T) {
+	svc, _ := newTestService()
+	orderNo := submitOK(t, svc)
+
+	if err := svc.CancelOrder(orderNo, 2001); !errors.Is(err, ErrInvalidStatus) {
+		t.Errorf("非本人取消应返回 ErrInvalidStatus, 实际 %v", err)
+	}
+	if err := svc.CancelOrder(orderNo, 1001); err != nil {
+		t.Fatalf("待审核状态取消失败: %v", err)
+	}
+	o, _ := svc.GetOrder(orderNo)
+	if o.Status != model.StatusCanceled {
+		t.Errorf("取消后状态 = %s, 期望 %s", o.Status, model.StatusCanceled)
+	}
+
+	// 已取消工单不再占用"未关闭"名额，同位置可重新报修
+	no2, err := svc.SubmitOrder(&model.RepairOrder{
+		ReporterID: 1001, FaultType: "无线AP故障", Location: "T3-502", Description: "重新报修",
+	})
+	if err != nil {
+		t.Fatalf("取消后重新报修失败: %v", err)
+	}
+
+	// 已受理的工单不可再取消
+	svc.ReviewOrder(no2, true, "")
+	if err := svc.CancelOrder(no2, 1001); !errors.Is(err, ErrInvalidStatus) {
+		t.Errorf("已受理工单取消应返回 ErrInvalidStatus, 实际 %v", err)
+	}
+}
+
 // TestInvalidStatusFlow 测试状态机非法跳转被拒绝。
 func TestInvalidStatusFlow(t *testing.T) {
 	svc, _ := newTestService()
