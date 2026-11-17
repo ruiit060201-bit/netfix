@@ -228,6 +228,18 @@ func (s *OrderService) updateStatus(o *model.RepairOrder, st model.OrderStatus) 
 	o.UpdatedAt = time.Now()
 }
 
+// ListOrders 返回全部报修单的快照副本，供统计等只读场景使用。
+func (s *OrderService) ListOrders() []*model.RepairOrder {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	list := make([]*model.RepairOrder, 0, len(s.orders))
+	for _, o := range s.orders {
+		cp := *o
+		list = append(list, &cp)
+	}
+	return list
+}
+
 // isClosed 判断工单是否处于终态（已关闭/已驳回/已取消）。
 func isClosed(st model.OrderStatus) bool {
 	switch st {
